@@ -40,13 +40,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 ${rowData.values.map((val, i) => {
                   let headerText = headers[i + 1];
                   let colId = headerText.toLowerCase().replace(/\./g, '').replace(/ /g, '-');
-                  const isReadOnlyCol = headerText.startsWith("Ef.") || headerText === "Efectivo";
-
-                  if (isReadOnlyCol) {
-                    return `<td class="${styles.value}" data-section="${sectionId}" data-row="${rowData.id}" data-col="${colId}">${val || '____'}</td>`;
-                  } else {
-                    return `<td class="border border-black text-center">${createEditableCell(sectionId, rowData.id, colId, val)}</td>`;
-                  }
+                  return `<td class="border border-black text-center">${createEditableCell(sectionId, rowData.id, colId, val)}</td>`;
                 }).join("")}
               </tr>
             `).join("")}
@@ -54,8 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
         </table>
         ${showEf ? `
         <div class="mt-4 flex flex-wrap gap-4">
-          <div><span class="font-bold text-black">Pos. Ef:</span><div class="${styles.efValue}" data-section="${sectionId}" data-row="summary" data-col="pos-ef">____</div></div>
-          <div><span class="font-bold text-black">Pres Ef:</span><div class="${styles.efValue}" data-section="${sectionId}" data-row="summary" data-col="pres-ef">____</div></div>
+          <div><span class="font-bold text-black">Pos. Ef:</span>${createEditableCell(sectionId, 'summary', 'pos-ef', '____')}</div>
+          <div><span class="font-bold text-black">Pres Ef:</span>${createEditableCell(sectionId, 'summary', 'pres-ef', '____')}</div>
         </div>` : ''}
       </div>
     `;
@@ -93,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function () {
               return `
                 <div>
                   <span class="font-bold text-black">${item}:</span>
-                  <div class="${styles.efValue}" data-section="${sectionId}" data-row="prensa-summary" data-col="${colId}">____</div>
+                  ${createEditableCell(sectionId, 'prensa-summary', colId, '____')}
                 </div>
               `;
             }).join("")}
@@ -123,29 +117,13 @@ document.addEventListener("DOMContentLoaded", function () {
       article: document.getElementById('article-input')?.value || '',
       fields: {}
     };
-    document.querySelectorAll(`input[data-section]`).forEach(input => {
+    document.querySelectorAll(`input[data-section][data-row][data-col]`).forEach(input => {
       const section = input.dataset.section;
       const row = input.dataset.row;
       const col = input.dataset.col;
       if (!data.fields[section]) data.fields[section] = {};
       if (!data.fields[section][row]) data.fields[section][row] = {};
       data.fields[section][row][col] = input.value;
-    });
-    document.querySelectorAll(`div[data-section][data-row][data-col]`).forEach(div => {
-        const section = div.dataset.section;
-        const row = div.dataset.row;
-        const col = div.dataset.col;
-        if (!data.fields[section]) data.fields[section] = {};
-        if (!data.fields[section][row]) data.fields[section][row] = {};
-        data.fields[section][row][col] = div.textContent || '____';
-    });
-    document.querySelectorAll(`td[data-section][data-row][data-col]`).forEach(td => {
-        const section = td.dataset.section;
-        const row = td.dataset.row;
-        const col = td.dataset.col;
-        if (!data.fields[section]) data.fields[section] = {};
-        if (!data.fields[section][row]) data.fields[section][row] = {};
-        data.fields[section][row][col] = td.textContent || '____';
     });
     return data;
   }
@@ -159,23 +137,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const articleInput = document.getElementById('article-input');
     if(articleInput) articleInput.value = data.article || '';
 
-    document.querySelectorAll(`input[data-section]`).forEach(input => input.value = '____');
-    document.querySelectorAll(`div[data-section][data-row][data-col]`).forEach(div => div.textContent = '____');
-    document.querySelectorAll(`td[data-section][data-row][data-col]`).forEach(td => td.textContent = '____');
+    document.querySelectorAll(`input[data-section][data-row][data-col]`).forEach(input => input.value = '____');
 
     for (const section in data.fields) {
       for (const row in data.fields[section]) {
         for (const col in data.fields[section][row]) {
           const value = data.fields[section][row][col];
-          const element = document.querySelector(`[data-section="${section}"][data-row="${row}"][data-col="${col}"]`);
+          const element = document.querySelector(`input[data-section="${section}"][data-row="${row}"][data-col="${col}"]`);
           if (element) {
-            if (element.tagName === 'INPUT') {
-              element.value = value || '';
-            } else if (element.tagName === 'DIV' || element.tagName === 'TD') {
-              element.textContent = value || '____';
-            }
+            element.value = value || '';
           } else {
-            console.warn(`Elemento no encontrado para ${section}-${row}-${col}`);
+            console.warn(`Input no encontrado para ${section}-${row}-${col}`);
           }
         }
       }
@@ -185,9 +157,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function clearAllFormData() {
     const articleInput = document.getElementById('article-input');
     if(articleInput) articleInput.value = '';
-    document.querySelectorAll(`input[data-section]`).forEach(input => input.value = '____');
-    document.querySelectorAll(`div[data-section][data-row][data-col]`).forEach(div => div.textContent = '____');
-    document.querySelectorAll(`td[data-section][data-row][data-col]`).forEach(td => td.textContent = '____');
+    document.querySelectorAll(`input[data-section][data-row][data-col]`).forEach(input => input.value = '____');
 
     const recordSelect = document.getElementById('record-select');
     if (recordSelect) recordSelect.value = "";
@@ -371,7 +341,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return `
                     <div>
                         <span class="font-bold text-black">${param}:</span>
-                        <div class="${styles.efValue}" data-section="manuales" data-row="valores" data-col="${colId}">____</div>
+                        ${createEditableCell('manuales', 'valores', colId, '____')}
                     </div>
                     `;
               }).join("")}
