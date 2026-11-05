@@ -1,0 +1,16 @@
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    .container {
+        page-break-before: always; /* Salto de página antes de cada sección */
+        padding: 20px;
+    }
+    h1, h2, h3 {
+        page-break-after: avoid; /* Evita cortar los títulos en dos páginas */
+    }
+    table {
+        page-break-inside: avoid; /* Evita que las tablas se corten en dos páginas */
+    }
+}
