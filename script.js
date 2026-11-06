@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function createArticleInput(initialValue = "") {
-    return `<div class="${styles.articleContainer}">ARTÍCULO: <input type="text" id="article-input" class="${styles.input}" value="${initialValue}" /></div>`;
+    return `<div class="${styles.articleContainer}">ARTÍCULO: <input type="text" class="article-input ${styles.input}" value="${initialValue}" /></div>`;
   }
 
   function createTable(sectionId, headers, rowsData, showEf = false) {
@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function getAllFormData() {
     const data = {
-      article: document.getElementById('article-input')?.value || '',
+      article: document.querySelector('.article-input')?.value || '',
       fields: {}
     };
     document.querySelectorAll(`input[data-section][data-row][data-col]`).forEach(input => {
@@ -134,8 +134,7 @@ document.addEventListener("DOMContentLoaded", function () {
         clearAllFormData();
         return;
     }
-    const articleInput = document.getElementById('article-input');
-    if(articleInput) articleInput.value = data.article || '';
+    document.querySelectorAll('.article-input').forEach(input => input.value = data.article || '');
 
     document.querySelectorAll(`input[data-section][data-row][data-col]`).forEach(input => input.value = '____');
 
@@ -155,12 +154,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function clearAllFormData() {
-    const articleInput = document.getElementById('article-input');
-    if(articleInput) articleInput.value = '';
+    document.querySelectorAll('.article-input').forEach(input => input.value = '');
     document.querySelectorAll(`input[data-section][data-row][data-col]`).forEach(input => input.value = '____');
 
     const recordSelect = document.getElementById('record-select');
     if (recordSelect) recordSelect.value = "";
+    const recordSearch = document.getElementById('record-search');
+    if (recordSearch) recordSearch.value = "";
+    const suggestions = document.getElementById('record-suggestions');
+    if (suggestions) suggestions.hidden = true;
     currentlyEditingIndex = null;
   }
 
@@ -169,14 +171,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const select = document.getElementById('record-select');
     if (!select) return;
 
-    const previouslySelectedValue = selectedIndexToRestore ?? select.value;
+    const previouslySelectedValue = selectedIndexToRestore ?? currentlyEditingIndex ?? select.value;
 
     select.innerHTML = '<option value="">--- NUEVA HOJA ---</option>';
     records.forEach((record, index) => {
       const recordName = record.name || `Registro ${index + 1} - ${record.article || 'Sin Artículo'}`;
       const option = document.createElement('option');
       option.value = index;
-      option.textContent = recordName;
+      option.textContent = `${record.article || 'Sin Artículo'} — ${recordName}`;
       select.appendChild(option);
     });
 
@@ -185,17 +187,68 @@ document.addEventListener("DOMContentLoaded", function () {
     } else {
         select.value = "";
     }
-     currentlyEditingIndex = select.value !== "" ? parseInt(select.value, 10) : null;
+    if (selectedIndexToRestore !== null) {
+      currentlyEditingIndex = select.value !== ""
+        ? parseInt(select.value, 10)
+        : selectedIndexToRestore;
+    }
+  }
+
+  function renderRecordSuggestions(query) {
+    const suggestions = document.getElementById('record-suggestions');
+    const search = document.getElementById('record-search');
+    if (!suggestions || !search) return;
+
+    suggestions.replaceChildren();
+    const normalizedQuery = query.trim().toLocaleLowerCase('es');
+    if (!normalizedQuery) {
+      suggestions.hidden = true;
+      search.setAttribute('aria-expanded', 'false');
+      return;
+    }
+
+    const records = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const matchingRecords = records
+      .map((record, index) => ({ record, index }))
+      .filter(({ record }) => {
+        const searchableText = `${record.article || ''} ${record.name || ''}`.toLocaleLowerCase('es');
+        return searchableText.includes(normalizedQuery);
+      });
+
+    if (matchingRecords.length === 0) {
+      const emptyMessage = document.createElement('div');
+      emptyMessage.className = 'px-3 py-2 text-gray-600';
+      emptyMessage.textContent = 'No se encontraron artículos u hojas.';
+      suggestions.appendChild(emptyMessage);
+    } else {
+      matchingRecords.forEach(({ record, index }) => {
+        const option = document.createElement('button');
+        const recordName = record.name || `Registro ${index + 1}`;
+        option.type = 'button';
+        option.className = 'block w-full px-3 py-2 text-left hover:bg-gray-200 focus:bg-gray-200';
+        option.setAttribute('role', 'option');
+        option.textContent = `${record.article || 'Sin Artículo'} — ${recordName}`;
+        option.addEventListener('click', () => {
+          const recordSelect = document.getElementById('record-select');
+          if (!recordSelect) return;
+          recordSelect.value = String(index);
+          loadSelectedRecordForEditing();
+        });
+        suggestions.appendChild(option);
+      });
+    }
+
+    suggestions.hidden = false;
+    search.setAttribute('aria-expanded', 'true');
   }
 
   function saveCurrentRecord() {
      const currentData = getAllFormData();
      const records = JSON.parse(localStorage.getItem(storageKey) || '[]');
-     const select = document.getElementById('record-select');
-     const selectedIndex = select ? select.value : null;
+     const selectedIndex = currentlyEditingIndex;
 
-     if (selectedIndex !== null && selectedIndex !== "") {
-         const indexToUpdate = parseInt(selectedIndex, 10);
+     if (selectedIndex !== null) {
+         const indexToUpdate = selectedIndex;
          if (indexToUpdate >= 0 && indexToUpdate < records.length) {
              const originalRecord = records[indexToUpdate];
              let newName = originalRecord.name;
@@ -220,6 +273,7 @@ document.addEventListener("DOMContentLoaded", function () {
              localStorage.setItem(storageKey, JSON.stringify(records));
              alert(`Hoja "${newName}" actualizada.`);
              loadRecordsList(indexToUpdate);
+             loadSelectedRecordForEditing();
          } else {
              console.error("Índice seleccionado inválido para actualizar.");
              alert("Error: No se pudo encontrar la hoja seleccionada para actualizar.");
@@ -237,7 +291,7 @@ document.addEventListener("DOMContentLoaded", function () {
              alert(`Nueva hoja "${recordName}" guardada.`);
              const newIndex = records.length - 1;
              loadRecordsList(newIndex);
-             setAllFormData(currentData);
+             loadSelectedRecordForEditing();
          }
      }
   }
@@ -257,6 +311,12 @@ document.addEventListener("DOMContentLoaded", function () {
       if (selectedRecord) {
         setAllFormData(selectedRecord);
         currentlyEditingIndex = recordIndex;
+        const search = document.getElementById('record-search');
+        const recordName = selectedRecord.name || `Registro ${recordIndex + 1}`;
+        if (search) search.value = `${selectedRecord.article || 'Sin Artículo'} — ${recordName}`;
+        const suggestions = document.getElementById('record-suggestions');
+        if (suggestions) suggestions.hidden = true;
+        search?.setAttribute('aria-expanded', 'false');
       } else {
         alert("Error al cargar la hoja seleccionada.");
         clearAllFormData();
@@ -268,6 +328,15 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderApp() {
       const controlPanel = `
         <div class="p-4 mb-4 bg-gray-200 rounded border border-black flex flex-wrap items-center gap-4">
+          <div class="relative flex-grow min-w-[240px]">
+            <label for="record-search" class="font-bold text-black">Buscar artículo u hoja:</label>
+            <input id="record-search" type="search" class="${styles.select} w-full bg-white"
+              placeholder="Escriba un artículo o nombre de hoja..." autocomplete="off"
+              role="combobox" aria-autocomplete="list" aria-controls="record-suggestions"
+              aria-haspopup="listbox" aria-expanded="false">
+            <div id="record-suggestions" class="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-black rounded shadow-lg"
+              role="listbox" hidden></div>
+          </div>
           <label for="record-select" class="font-bold text-black">Hoja Activa:</label>
           <select id="record-select" class="${styles.select} flex-grow min-w-[200px]">
             <option value="">--- NUEVA HOJA ---</option>
@@ -379,6 +448,22 @@ document.addEventListener("DOMContentLoaded", function () {
       </div>
     `;
 
+    document.querySelectorAll('.article-input').forEach(input => {
+      input.addEventListener('input', event => {
+        document.querySelectorAll('.article-input').forEach(articleInput => {
+          if (articleInput !== event.currentTarget) articleInput.value = event.currentTarget.value;
+        });
+      });
+    });
+    const recordSearch = document.getElementById('record-search');
+    recordSearch?.addEventListener('input', () => renderRecordSuggestions(recordSearch.value));
+    recordSearch?.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        const suggestions = document.getElementById('record-suggestions');
+        if (suggestions) suggestions.hidden = true;
+        recordSearch.setAttribute('aria-expanded', 'false');
+      }
+    });
     document.getElementById('save-button')?.addEventListener('click', saveCurrentRecord);
     document.getElementById('record-select')?.addEventListener('change', loadSelectedRecordForEditing);
     document.getElementById('new-button')?.addEventListener('click', () => {
